@@ -1,0 +1,17 @@
+name: "Deploy Dev"
+on:
+    workflow_call:
+        secrets:
+            CUSTOM_LOCAL:
+                required: true
+            DOMAIN:
+                required: true
+            ENV:
+                required: true
+jobs:
+    deploy:
+        runs-on: macos-latest
+        steps:
+            - name: "test env values"
+              run: |
+                  echo ${{ secrets.ENV }}
