@@ -1,0 +1,82 @@
+name: Validate FLAVOR
+
+on:
+  workflow_call:
+    secrets:
+        FLAVOR:
+            required: true
+
+jobs:
+  validate-flavor:
+    environment: local
+    runs-on: macos-latest
+
+    steps:
+      - name: Set up environment variables
+        run: |
+          echo "FLAVOR=${{ secrets.FLAVOR }}" >> $GITHUB_ENV
+          echo "DEPLOYMENT_ID=web-$(date +%Y-%m-%d-%H-%M-%S)" >> $GITHUB_ENV
+
+      - name: Check if FLAVOR is set
+        run: |
+          if [ -z "$FLAVOR" ]; then
+            echo "FLAVOR is not set. Usage: provide FLAVOR=[local|dev|prod]";
+            exit 1;
+          fi
+          if [ "$FLAVOR" != "local" ] && [ "$FLAVOR" != "dev" ] && [ "$FLAVOR" != "prod" ]; then
+            echo "Invalid FLAVOR value: $FLAVOR. Must be one of [local|dev|prod]";
+            exit 1;
+          fi
+
+      - name: Validate environment file
+        run: |
+          FLAVOR_FILE="${FLAVOR}.json"
+          
+          # Check if file exists and is not empty
+          if [ ! -f "$FLAVOR_FILE" ]; then
+            echo "ERROR: FLAVOR_FILE - $FLAVOR_FILE - does not exist";
+            exit 1;
+          fi
+          if [ ! -s "$FLAVOR_FILE" ]; then
+            echo "ERROR: FLAVOR_FILE - $FLAVOR_FILE - is empty";
+            exit 1;
+          fi
+          echo "Validating environment variables in $FLAVOR_FILE...";
+
+          # Check for ENV key
+          if ! grep '"ENV"' "$FLAVOR_FILE" > /dev/null; then
+            echo "ERROR: ENV must be present in $FLAVOR_FILE";
+            exit 1;
+          fi
+          
+          # Capture values
+          ENV_VAL=$(grep '"ENV"' "$FLAVOR_FILE" | sed -E 's/.*"ENV": *"([^"]+)".*/\1/')
+          CUSTOM_LOCAL_VAL=$(grep '"CUSTOM_LOCAL"' "$FLAVOR_FILE" | sed -E 's/.*"CUSTOM_LOCAL": *"([^"]*)".*/\1/' || echo "")
+          echo "Captured ENV_VAL: $ENV_VAL";
+          echo "Captured CUSTOM_LOCAL_VAL: $CUSTOM_LOCAL_VAL";
+
+          # Local-specific checks
+          if [ "$FLAVOR" = "local" ]; then
+            if ! grep '"CUSTOM_LOCAL"' "$FLAVOR_FILE" > /dev/null; then
+              echo "ERROR: CUSTOM_LOCAL must be present in local flavor $FLAVOR_FILE";
+              exit 1;
+            fi
+            if [ -z "$CUSTOM_LOCAL_VAL" ]; then
+              echo "ERROR: CUSTOM_LOCAL must be non-empty in local flavor $FLAVOR_FILE";
+              exit 1;
+            fi
+            echo "CUSTOM_LOCAL is valid for local flavor.";
+          else
+            # Non-local-specific checks
+            if [ -n "$CUSTOM_LOCAL_VAL" ]; then
+              echo "ERROR: CUSTOM_LOCAL must not be present or must be blank for non-local flavors ($FLAVOR_FILE)";
+              exit 1;
+            fi
+            if [ "$ENV_VAL" != "$FLAVOR" ]; then
+              echo "ERROR: ENV ($ENV_VAL) must match FLAVOR ($FLAVOR)";
+              exit 1;
+            fi
+            echo "All validations passed for non-local flavor.";
+          fi
+          
+          echo "All validations passed for $FLAVOR_FILE";
