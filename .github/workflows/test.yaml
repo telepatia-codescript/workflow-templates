@@ -10,17 +10,12 @@ on:
 jobs:
   access-secret:
     runs-on: ubuntu-latest
-    environment: local
-    outputs:
-      user_secret: ${{ steps.set-secret.outputs.user_secret }}
     steps:
       - name: Set secret name based on input
-        id: set-secret-name
+        id: set-secret
         run: echo "SECRET_NAME=${{ github.event.inputs.user }}" >> $GITHUB_ENV
 
       - name: Access the secret
-        id: set-secret
-        shell: bash
         env:
           USER_SECRET: ${{ secrets[env.SECRET_NAME] || 'SECRET_NOT_FOUND' }}
         run: |
@@ -28,16 +23,21 @@ jobs:
             echo "El secreto para el usuario no existe o no fue encontrado."
             exit 1
           else
-            echo "::set-output name=user_secret::$USER_SECRET"
+            echo "Secreto encontrado: $USER_SECRET"
           fi
 
-  use-secret:
-    needs: access-secret
-    runs-on: ubuntu-latest
-    steps:
-      - name: Use USER_SECRET in another job
+      - name: Parse secret
         env:
-          USER_SECRET: ${{ needs.access-secret.outputs.user_secret }}
+          USER_SECRET: ${{ secrets[env.SECRET_NAME] }}
         run: |
-          echo "Usando el secreto en otro job:"
-          echo "El valor de USER_SECRET es: $USER_SECRET"
+          echo "ENV=$(echo $USER_SECRET | jq -r '.ENV')" >> $GITHUB_ENV
+          echo "CUSTOM_LOCAL=$(echo $USER_SECRET | jq -r '.CUSTOM_LOCAL')" >> $GITHUB_ENV
+          echo "DOMAIN=$(echo $USER_SECRET | jq -r '.DOMAIN')" >> $GITHUB_ENV
+          echo "APP_TYPE=$(echo $USER_SECRET | jq -r '.APP_TYPE')" >> $GITHUB_ENV
+          
+      - name: Print the variables
+        run: |
+          echo "ENV: $ENV"
+          echo "CUSTOM_LOCAL: $CUSTOM_LOCAL"
+          echo "DOMAIN: $DOMAIN"
+          echo "APP_TYPE: $APP_TYPE"
