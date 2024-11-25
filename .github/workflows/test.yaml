@@ -10,6 +10,7 @@ on:
 jobs:
   access-secret:
     runs-on: ubuntu-latest
+    environment: local
     steps:
       - name: Set secret name based on input
         id: set-secret
