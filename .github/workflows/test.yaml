@@ -20,6 +20,7 @@ jobs:
 
       - name: Access the secret
         id: set-secret
+        shell: bash
         env:
           USER_SECRET: ${{ secrets[env.SECRET_NAME] || 'SECRET_NOT_FOUND' }}
         run: |
@@ -28,6 +29,7 @@ jobs:
             exit 1
           else
             echo "::set-output name=user_secret::$USER_SECRET"
+          fi
 
   use-secret:
     needs: access-secret
