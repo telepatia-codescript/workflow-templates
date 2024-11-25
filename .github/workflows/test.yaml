@@ -13,7 +13,7 @@ jobs:
     steps:
       - name: Set secret name based on input
         id: set-secret
-        run: echo "SECRET_NAME=SECRET_${{ github.event.inputs.user }}" >> $GITHUB_ENV
+        run: echo "SECRET_NAME=${{ github.event.inputs.user }}" >> $GITHUB_ENV
 
       - name: Access the secret
         env:
