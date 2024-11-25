@@ -10,6 +10,7 @@ on:
 jobs:
   access-secret:
     runs-on: ubuntu-latest
+    environment: local
     steps:
       - name: Set secret name based on input
         id: set-secret
@@ -34,7 +35,7 @@ jobs:
           echo "CUSTOM_LOCAL=$(echo $USER_SECRET | jq -r '.CUSTOM_LOCAL')" >> $GITHUB_ENV
           echo "DOMAIN=$(echo $USER_SECRET | jq -r '.DOMAIN')" >> $GITHUB_ENV
           echo "APP_TYPE=$(echo $USER_SECRET | jq -r '.APP_TYPE')" >> $GITHUB_ENV
-          
+
       - name: Print the variables
         run: |
           echo "ENV: $ENV"
