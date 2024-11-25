@@ -11,12 +11,15 @@ jobs:
   access-secret:
     runs-on: ubuntu-latest
     environment: local
+    outputs:
+      user_secret: ${{ steps.set-secret.outputs.user_secret }}
     steps:
       - name: Set secret name based on input
-        id: set-secret
+        id: set-secret-name
         run: echo "SECRET_NAME=${{ github.event.inputs.user }}" >> $GITHUB_ENV
 
       - name: Access the secret
+        id: set-secret
         env:
           USER_SECRET: ${{ secrets[env.SECRET_NAME] || 'SECRET_NOT_FOUND' }}
         run: |
@@ -24,5 +27,15 @@ jobs:
             echo "El secreto para el usuario no existe o no fue encontrado."
             exit 1
           else
-            echo "Secreto encontrado: $USER_SECRET"
-          fi
+            echo "::set-output name=user_secret::$USER_SECRET"
+
+  use-secret:
+    needs: access-secret
+    runs-on: ubuntu-latest
+    steps:
+      - name: Use USER_SECRET in another job
+        env:
+          USER_SECRET: ${{ needs.access-secret.outputs.user_secret }}
+        run: |
+          echo "Usando el secreto en otro job:"
+          echo "El valor de USER_SECRET es: $USER_SECRET"
