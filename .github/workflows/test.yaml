@@ -8,37 +8,12 @@ on:
         required: true
 
 jobs:
-  access-secret:
+  secrets-fetch:
     runs-on: ubuntu-latest
-    environment: local
     steps:
-      - name: Set secret name based on input
-        id: set-secret
-        run: echo "SECRET_NAME=${{ github.event.inputs.user }}" >> $GITHUB_ENV
-
-      - name: Access the secret
-        env:
-          USER_SECRET: ${{ secrets[env.SECRET_NAME] || 'SECRET_NOT_FOUND' }}
-        run: |
-          if [ "$USER_SECRET" = "SECRET_NOT_FOUND" ]; then
-            echo "El secreto para el usuario no existe o no fue encontrado."
-            exit 1
-          else
-            echo "Secreto encontrado: $USER_SECRET"
-          fi
-
-      - name: Parse secret
-        env:
-          USER_SECRET: ${{ secrets[env.SECRET_NAME] }}
-        run: |
-          echo "ENV=$(echo $USER_SECRET | jq -r '.ENV')" >> $GITHUB_ENV
-          echo "CUSTOM_LOCAL=$(echo $USER_SECRET | jq -r '.CUSTOM_LOCAL')" >> $GITHUB_ENV
-          echo "DOMAIN=$(echo $USER_SECRET | jq -r '.DOMAIN')" >> $GITHUB_ENV
-          echo "APP_TYPE=$(echo $USER_SECRET | jq -r '.APP_TYPE')" >> $GITHUB_ENV
-
-      - name: Print the variables
-        run: |
-          echo "ENV: $ENV"
-          echo "CUSTOM_LOCAL: $CUSTOM_LOCAL"
-          echo "DOMAIN: $DOMAIN"
-          echo "APP_TYPE: $APP_TYPE"
+    - uses: dopplerhq/secrets-fetch-action@v1.2.0
+      id: doppler
+      with:
+        doppler-token: ${{ secrets.DOPPLER_TOKEN }}
+        inject-env-vars: true
+    - run: printenv
