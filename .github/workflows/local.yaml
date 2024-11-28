@@ -1,13 +1,13 @@
 name: Local Deploy
 
-# on:
-#   workflow_call:
-#     secrets:
-#       DOPPLER_TOKEN: 
-#         required: true
-
 on:
-  workflow_dispatch:
+  workflow_call:
+    secrets:
+      DOPPLER_TOKEN: 
+        required: true
+
+# on:
+#   workflow_dispatch:
 
 jobs:
   build_web:
