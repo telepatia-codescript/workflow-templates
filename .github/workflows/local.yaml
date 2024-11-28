@@ -1,17 +1,47 @@
-name: "Deploy Dev"
+name: Dynamic Secret Access
+
+# on:
+#   workflow_call:
+#     secrets:
+#       DOPPLER_TOKEN: 
+#         required: true
+
 on:
-    workflow_call:
-        secrets:
-            CUSTOM_LOCAL:
-                required: true
-            DOMAIN:
-                required: true
-            ENV:
-                required: true
+  workflow_dispatch:
+
 jobs:
-    deploy:
-        runs-on: macos-latest
-        steps:
-            - name: "test env values"
-              run: |
-                  echo ${{ secrets.ENV_DEV }}
+  secrets-fetch:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Clone repository
+      uses: actions/checkout@v4
+    
+    - uses: dopplerhq/secrets-fetch-action@v1.2.0
+      id: doppler
+      with:
+        doppler-token: ${{ secrets.DOPPLER_TOKEN }}
+        doppler-project: infra
+        doppler-config: dev_telepatia-codescript
+    
+    - name: Set up Flutter
+      uses: subosito/flutter-action@v2
+      with:
+        channel: stable
+        flutter-version: 3.19.0
+    
+    - name: Define Flavor file
+      run: |
+        cat <<EOF > flavor.json
+        {
+            "ENV": ${{ steps.doppler.outputs.ENV }},
+            "CUSTOM_LOCAL": ${{ steps.doppler.outputs.CUSTOM_LOCAL }},
+            "DOMAIN": ${{ steps.doppler.outputs.DOMAIN }}
+            "APP_TYPE": ${{ steps.doppler.outputs.APP_TYPE }}
+        }
+        EOF
+    
+    - name: flavor file
+      run: |
+        echo flavor.json
+    
+  
