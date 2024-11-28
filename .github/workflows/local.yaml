@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  secrets-fetch:
+  build_web:
     runs-on: ubuntu-latest
     steps:
     - name: Clone repository
@@ -40,8 +40,29 @@ jobs:
         }
         EOF
     
-    - name: flavor file
+    - name: Build web
       run: |
-        cat flavor.json
+        echo "DEPLOYMENT_ID=web-$(date +'%Y-%m-%d-%H-%M-%S')" >> $GITHUB_ENV
+        flutter build web \
+            --dart-define-from-file=flavor.json \
+            --web-renderer canvaskit \
+            --source-maps \
+            --dart-define=DEPLOYMENT_ID=$DEPLOYMENT_ID \
+            --dart-define=GIT_COMMIT_HASH=${{ github.sha }}
+
+    - name: Build document
+      run: |
+        echo "FLAVOR: local" > build/web/flavor.txt
+        echo "DEPLOYMENT_ID: $DEPLOYMENT_ID" >> build/web/flavor.txt
+        echo "GIT_COMMIT_HASH: ${{ github.sha }}" >> build/web/flavor.txt
+        echo "DEPLOYED_BY: ${{ github.actor }}" >> build/web/flavor.txt
+        echo "TIMESTAMP (UTC): $(date -u)" >> build/web/flavor.txt
+        echo "TIMESTAMP (Local): $(date)" >> build/web/flavor.txt
+    
+    - name: Upload Build Artifacts
+      uses: actions/upload-artifact@master
+      with:
+        name: build
+        path: build/web
     
   
