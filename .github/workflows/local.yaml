@@ -28,6 +28,11 @@ jobs:
       with:
         channel: stable
         flutter-version: 3.24.0
+
+    - name: Install dependencies
+      run: |
+        flutter pub get
+        dart pub get
     
     - name: Define Flavor file
       run: |
@@ -39,6 +44,14 @@ jobs:
             "APP_TYPE": "${{ steps.doppler.outputs.APP_TYPE }}"
         }
         EOF
+
+    - name: Run build_runner
+      run: |
+        dart run build_runner build --delete-conflicting-outputs
+
+    - name: Start build_runner watch (in the background)
+      run: |
+        dart run build_runner watch --delete-conflicting-outputs &
     
     - name: Build web
       run: |
