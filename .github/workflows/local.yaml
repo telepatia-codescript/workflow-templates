@@ -71,6 +71,7 @@ jobs:
       run: |
         echo '${{ needs.fetch_secrets.outputs.flavor-json-content }}' > flavor.json
         echo "DEPLOYMENT_ID=web-$(date +'%Y-%m-%d-%H-%M-%S')" >> $GITHUB_ENV
+        cat flavor.json
         flutter build web \
             --dart-define-from-file=flavor.json \
             --web-renderer canvaskit \
@@ -122,6 +123,9 @@ jobs:
     - name: Deploy web
       run: |
         echo '${{ needs.fetch_secrets.outputs.flavor-json-content }}' > flavor.json
-        echo "CUSTOM_LOCAL=$(jq -r '.CUSTOM_LOCAL' flavor.json)" >> $GITHUB_ENV
+        cat flavor.json
+        CUSTOM_LOCAL=$(jq -r '.CUSTOM_LOCAL' flavor.json) >> $GITHUB_ENV
+        echo $CUSTOM_LOCAL
         HOSTING="dev-$CUSTOM_LOCAL" >> $GITHUB_ENV
+        echo $HOSTING
         firebase deploy --only hosting:$HOSTING
