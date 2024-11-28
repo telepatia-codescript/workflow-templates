@@ -33,10 +33,10 @@ jobs:
       run: |
         cat <<EOF > flavor.json
         {
-            "ENV": ${{ steps.doppler.outputs.ENV }},
-            "CUSTOM_LOCAL": ${{ steps.doppler.outputs.CUSTOM_LOCAL }},
-            "DOMAIN": ${{ steps.doppler.outputs.DOMAIN }}
-            "APP_TYPE": ${{ steps.doppler.outputs.APP_TYPE }}
+            "ENV": "${{ steps.doppler.outputs.ENV }}",
+            "CUSTOM_LOCAL": "${{ steps.doppler.outputs.CUSTOM_LOCAL }}",
+            "DOMAIN": "${{ steps.doppler.outputs.DOMAIN }}", 
+            "APP_TYPE": "${{ steps.doppler.outputs.APP_TYPE }}"
         }
         EOF
     
