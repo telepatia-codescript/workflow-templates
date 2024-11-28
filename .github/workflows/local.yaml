@@ -5,23 +5,48 @@ on:
     secrets:
       DOPPLER_TOKEN: 
         required: true
+      WORKLOAD_IDENTITY_PROVIDER:
+        required: true
+      SERVICE_ACCOUNT:
+        required: true
+    
 
 # on:
 #   workflow_dispatch:
 
 jobs:
-  build_web:
-    runs-on: ubuntu-latest
+  fetch_secrets:
+    runs-on: macos-latest
+    outputs:
+      flavor-json-content: ${{ steps.generate-flavor-json.outputs.FLAVOR_FILE }}
     steps:
-    - name: Clone repository
-      uses: actions/checkout@v4
-    
     - uses: dopplerhq/secrets-fetch-action@v1.2.0
       id: doppler
       with:
         doppler-token: ${{ secrets.DOPPLER_TOKEN }}
         doppler-project: infra
-        doppler-config: dev_telepatia-codescript
+        doppler-config: "dev_${{ github.actor }}"
+    
+    - name: Define Flavor file
+      id: generate-flavor-json
+      run: |
+        cat <<EOF > flavor.json
+        {
+            "ENV": "${{ steps.doppler.outputs.ENV }}",
+            "CUSTOM_LOCAL": "${{ steps.doppler.outputs.CUSTOM_LOCAL }}",
+            "DOMAIN": "${{ steps.doppler.outputs.DOMAIN }}", 
+            "APP_TYPE": "${{ steps.doppler.outputs.APP_TYPE }}"
+        }
+        EOF
+        content=$(cat flavor.json)
+        echo "FLAVOR_FILE=$FLAVOR_FILE" >> $GITHUB_OUTPUT
+
+  build_web:
+    runs-on: macos-latest
+    needs: fetch_secrets
+    steps:
+    - name: Clone repository
+      uses: actions/checkout@v4
     
     - name: Set up Flutter
       uses: subosito/flutter-action@v2
@@ -33,17 +58,6 @@ jobs:
       run: |
         flutter pub get
         dart pub get
-    
-    - name: Define Flavor file
-      run: |
-        cat <<EOF > flavor.json
-        {
-            "ENV": "${{ steps.doppler.outputs.ENV }}",
-            "CUSTOM_LOCAL": "${{ steps.doppler.outputs.CUSTOM_LOCAL }}",
-            "DOMAIN": "${{ steps.doppler.outputs.DOMAIN }}", 
-            "APP_TYPE": "${{ steps.doppler.outputs.APP_TYPE }}"
-        }
-        EOF
 
     - name: Run build_runner
       run: |
@@ -55,6 +69,7 @@ jobs:
     
     - name: Build web
       run: |
+        echo '${{ needs.fetch_secrets.outputs.flavor-json-content }}' > flavor.json
         echo "DEPLOYMENT_ID=web-$(date +'%Y-%m-%d-%H-%M-%S')" >> $GITHUB_ENV
         flutter build web \
             --dart-define-from-file=flavor.json \
@@ -73,9 +88,40 @@ jobs:
         echo "TIMESTAMP (Local): $(date)" >> build/web/flavor.txt
     
     - name: Upload Build Artifacts
-      uses: actions/upload-artifact@master
+      uses: actions/upload-artifact@v4
+      with:
+        name: build
+        path: build/web 
+
+  deploy_web:
+    runs-on: macos-latest
+    needs: [build_web, fetch_secrets]
+    steps:
+    - name: Clone repository
+      uses: actions/checkout@v4
+
+    - id: auth
+      name: 'Authenticate to Google Cloud'
+      uses: 'google-github-actions/auth@v2'
+      with:
+        create_credentials_file: true
+        workload_identity_provider: ${{ secrets.WORKLOAD_IDENTITY_PROVIDER }}
+        service_account: ${{ secrets.SERVICE_ACCOUNT }}
+
+    - name: Set up Cloud SDK
+      uses: 'google-github-actions/setup-gcloud@v2'
+      with:
+        version: '>= 363.0.0'
+    
+    - name: Download Artifact
+      uses: actions/download-artifact@v3
       with:
         name: build
         path: build/web
     
-  
+    - name: Deploy web
+      run: |
+        echo '${{ needs.fetch_secrets.outputs.flavor-json-content }}' > flavor.json
+        CUSTOM_LOCAL=$(jq -r '.CUSTOM_LOCAL' flavor.json) >> $GITHUB_ENV
+        HOSTING="dev-$CUSTOM_LOCAL" >> $GITHUB_ENV
+        firebase deploy --only hosting:$HOSTING
