@@ -114,7 +114,7 @@ jobs:
         version: '>= 363.0.0'
     
     - name: Download Artifact
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
         name: build
         path: build/web
@@ -122,6 +122,6 @@ jobs:
     - name: Deploy web
       run: |
         echo '${{ needs.fetch_secrets.outputs.flavor-json-content }}' > flavor.json
-        CUSTOM_LOCAL=$(jq -r '.CUSTOM_LOCAL' flavor.json) >> $GITHUB_ENV
+        echo "CUSTOM_LOCAL=$(jq -r '.CUSTOM_LOCAL' flavor.json)" >> $GITHUB_ENV
         HOSTING="dev-$CUSTOM_LOCAL" >> $GITHUB_ENV
         firebase deploy --only hosting:$HOSTING
