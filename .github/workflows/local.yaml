@@ -5,9 +5,9 @@ on:
     secrets:
       DOPPLER_TOKEN: 
         required: true
-      WORKLOAD_IDENTITY_PROVIDER:
+      GCP_SERVICE_ACCOUNT_KEY:
         required: true
-      SERVICE_ACCOUNT:
+      GCP_PROJECT_ID:
         required: true
     
 
@@ -15,35 +15,8 @@ on:
 #   workflow_dispatch:
 
 jobs:
-  fetch_secrets:
-    runs-on: macos-latest
-    outputs:
-      flavor-json-content: ${{ steps.generate-flavor-json.outputs.FLAVOR_FILE }}
-    steps:
-    - uses: dopplerhq/secrets-fetch-action@v1.2.0
-      id: doppler
-      with:
-        doppler-token: ${{ secrets.DOPPLER_TOKEN }}
-        doppler-project: infra
-        doppler-config: "dev_${{ github.actor }}"
-    
-    - name: Define Flavor file
-      id: generate-flavor-json
-      run: |
-        cat <<EOF > flavor.json
-        {
-            "ENV": "${{ steps.doppler.outputs.ENV }}",
-            "CUSTOM_LOCAL": "${{ steps.doppler.outputs.CUSTOM_LOCAL }}",
-            "DOMAIN": "${{ steps.doppler.outputs.DOMAIN }}", 
-            "APP_TYPE": "${{ steps.doppler.outputs.APP_TYPE }}"
-        }
-        EOF
-        content=$(jq -c '.' flavor.json)
-        echo "FLAVOR_FILE=$content" >> $GITHUB_OUTPUT
-
   build_web:
     runs-on: macos-latest
-    needs: fetch_secrets
     steps:
     - name: Clone repository
       uses: actions/checkout@v4
@@ -63,15 +36,26 @@ jobs:
       run: |
         dart run build_runner build --delete-conflicting-outputs
 
-    - name: Start build_runner watch (in the background)
+    - uses: dopplerhq/secrets-fetch-action@v1.2.0
+      id: doppler
+      with:
+        doppler-token: ${{ secrets.DOPPLER_TOKEN }}
+        doppler-project: infra
+        doppler-config: "dev_${{ github.actor }}"    
+
+    - name: Define Flavor file
       run: |
-        dart run build_runner watch --delete-conflicting-outputs &
-    
+        cat <<EOF > flavor.json
+        {
+          "ENV": "${{ steps.doppler.outputs.ENV }}",
+          "CUSTOM_LOCAL": "${{ steps.doppler.outputs.CUSTOM_LOCAL }}",
+          "DOMAIN": "${{ steps.doppler.outputs.DOMAIN }}", 
+          "APP_TYPE": "${{ steps.doppler.outputs.APP_TYPE }}"
+        }
+        EOF
+          
     - name: Build web
-      env:
-        FLAVOR_FILE: ${{ needs.fetch_secrets.outputs.flavor-json-content }}
       run: |
-        echo '$FLAVOR_FILE' | jq '.' > flavor.json
         echo "DEPLOYMENT_ID=web-$(date +'%Y-%m-%d-%H-%M-%S')" >> $GITHUB_ENV
         flutter build web \
             --dart-define-from-file=flavor.json \
@@ -96,36 +80,50 @@ jobs:
         path: build/web 
 
   deploy_web:
+    permissions:
+      id-token: write
+      contents: read
     runs-on: macos-latest
-    needs: [build_web, fetch_secrets]
+    needs: build_web
     steps:
     - name: Clone repository
       uses: actions/checkout@v4
 
-    - id: auth
-      name: 'Authenticate to Google Cloud'
-      uses: 'google-github-actions/auth@v2'
+    - name: Set up Google Cloud SDK
+      uses: google-github-actions/setup-gcloud@v2
       with:
-        create_credentials_file: true
-        workload_identity_provider: ${{ secrets.WORKLOAD_IDENTITY_PROVIDER }}
-        service_account: ${{ secrets.SERVICE_ACCOUNT }}
-
-    - name: Set up Cloud SDK
-      uses: 'google-github-actions/setup-gcloud@v2'
-      with:
-        version: '>= 363.0.0'
+        project_id: ${{ secrets.GCP_PROJECT_ID }}
     
     - name: Download Artifact
       uses: actions/download-artifact@v4
       with:
         name: build
         path: build/web
+
+    - uses: dopplerhq/secrets-fetch-action@v1.2.0
+      id: doppler
+      with:
+        doppler-token: ${{ secrets.DOPPLER_TOKEN }}
+        doppler-project: infra
+        doppler-config: "dev_${{ github.actor }}"    
+  
+    - name: Define Flavor file
+      run: |
+        cat <<EOF > flavor.json
+        {
+          "ENV": "${{ steps.doppler.outputs.ENV }}",
+          "CUSTOM_LOCAL": "${{ steps.doppler.outputs.CUSTOM_LOCAL }}",
+          "DOMAIN": "${{ steps.doppler.outputs.DOMAIN }}", 
+          "APP_TYPE": "${{ steps.doppler.outputs.APP_TYPE }}"
+        }
+        EOF
     
     - name: Deploy web
       env:
-        FLAVOR_FILE: ${{ needs.fetch_secrets.outputs.flavor-json-content }}
+        GCLOUD_KEY: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
       run: |
-        echo '$FLAVOR_FILE' | jq '.' > flavor.json
-        CUSTOM_LOCAL=$(jq -r '.CUSTOM_LOCAL' flavor.json) >> $GITHUB_ENV
-        HOSTING="dev-$CUSTOM_LOCAL" >> $GITHUB_ENV
-        firebase deploy --only hosting:$HOSTING
+        npm install -g firebase-tools
+        echo $GCLOUD_KEY > /tmp/gcp-key.json
+        export GOOGLE_APPLICATION_CREDENTIALS=/tmp/gcp-key.json
+        gcloud auth activate-service-account --key-file=/tmp/gcp-key.json
+        firebase deploy --only hosting:dev-${{ steps.doppler.outputs.CUSTOM_LOCAL }}
