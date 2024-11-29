@@ -39,7 +39,7 @@ jobs:
         }
         EOF
         content=$(cat flavor.json)
-        echo "FLAVOR_FILE=$FLAVOR_FILE" >> $GITHUB_OUTPUT
+        echo "FLAVOR_FILE=$content" >> $GITHUB_OUTPUT
 
   build_web:
     runs-on: macos-latest
