@@ -9,16 +9,12 @@ on:
         required: true
       SERVICE_ACCOUNT:
         required: true
-    
-
-# on:
-#   workflow_dispatch:
 
 jobs:
   fetch_secrets:
     runs-on: macos-latest
     outputs:
-      flavor-json-content: ${{ steps.generate-flavor-json.outputs.FLAVOR_FILE }}
+      flavor-json-content: ${{ steps.generate-flavor-json.outputs.flavor_file }}
     steps:
     - uses: dopplerhq/secrets-fetch-action@v1.2.0
       id: doppler
@@ -27,7 +23,7 @@ jobs:
         doppler-project: infra
         doppler-config: "dev_${{ github.actor }}"
     
-    - name: Define Flavor file
+    - name: Define Flavor File
       id: generate-flavor-json
       run: |
         cat <<EOF > flavor.json
@@ -38,14 +34,14 @@ jobs:
             "APP_TYPE": "${{ steps.doppler.outputs.APP_TYPE }}"
         }
         EOF
-        content=$(cat flavor.json)
-        echo "FLAVOR_FILE=$content" >> $GITHUB_OUTPUT
+        content=$(jq -c '.' flavor.json)
+        echo "flavor_file=$content" >> $GITHUB_OUTPUT
 
   build_web:
     runs-on: macos-latest
     needs: fetch_secrets
     steps:
-    - name: Clone repository
+    - name: Clone Repository
       uses: actions/checkout@v4
     
     - name: Set up Flutter
@@ -54,7 +50,7 @@ jobs:
         channel: stable
         flutter-version: 3.24.0
 
-    - name: Install dependencies
+    - name: Install Dependencies
       run: |
         flutter pub get
         dart pub get
@@ -63,15 +59,10 @@ jobs:
       run: |
         dart run build_runner build --delete-conflicting-outputs
 
-    - name: Start build_runner watch (in the background)
+    - name: Build Web
       run: |
-        dart run build_runner watch --delete-conflicting-outputs &
-    
-    - name: Build web
-      run: |
-        echo '${{ needs.fetch_secrets.outputs.flavor-json-content }}' > flavor.json
+        echo '${{ needs.fetch_secrets.outputs.flavor-json-content }}' | jq '.' > flavor.json
         echo "DEPLOYMENT_ID=web-$(date +'%Y-%m-%d-%H-%M-%S')" >> $GITHUB_ENV
-        cat flavor.json
         flutter build web \
             --dart-define-from-file=flavor.json \
             --web-renderer canvaskit \
@@ -79,7 +70,7 @@ jobs:
             --dart-define=DEPLOYMENT_ID=$DEPLOYMENT_ID \
             --dart-define=GIT_COMMIT_HASH=${{ github.sha }}
 
-    - name: Build document
+    - name: Create Deployment Metadata
       run: |
         echo "FLAVOR: local" > build/web/flavor.txt
         echo "DEPLOYMENT_ID: $DEPLOYMENT_ID" >> build/web/flavor.txt
@@ -98,34 +89,33 @@ jobs:
     runs-on: macos-latest
     needs: [build_web, fetch_secrets]
     steps:
-    - name: Clone repository
+    - name: Clone Repository
       uses: actions/checkout@v4
 
     - id: auth
-      name: 'Authenticate to Google Cloud'
-      uses: 'google-github-actions/auth@v2'
+      name: Authenticate to Google Cloud
+      uses: google-github-actions/auth@v2
       with:
         create_credentials_file: true
         workload_identity_provider: ${{ secrets.WORKLOAD_IDENTITY_PROVIDER }}
         service_account: ${{ secrets.SERVICE_ACCOUNT }}
 
     - name: Set up Cloud SDK
-      uses: 'google-github-actions/setup-gcloud@v2'
+      uses: google-github-actions/setup-gcloud@v2
       with:
         version: '>= 363.0.0'
     
-    - name: Download Artifact
+    - name: Download Build Artifacts
       uses: actions/download-artifact@v4
       with:
         name: build
         path: build/web
     
-    - name: Deploy web
+    - name: Deploy to Firebase Hosting
       run: |
-        echo '${{ needs.fetch_secrets.outputs.flavor-json-content }}' > flavor.json
-        cat flavor.json
-        CUSTOM_LOCAL=$(jq -r '.CUSTOM_LOCAL' flavor.json) >> $GITHUB_ENV
-        echo $CUSTOM_LOCAL
-        HOSTING="dev-$CUSTOM_LOCAL" >> $GITHUB_ENV
-        echo $HOSTING
+        echo '${{ needs.fetch_secrets.outputs.flavor-json-content }}' | jq '.' > flavor.json
+        CUSTOM_LOCAL=$(jq -r '.CUSTOM_LOCAL' flavor.json)
+        echo "CUSTOM_LOCAL=$CUSTOM_LOCAL" >> $GITHUB_ENV
+        HOSTING="dev-$CUSTOM_LOCAL"
+        echo "Deploying to Firebase Hosting: $HOSTING"
         firebase deploy --only hosting:$HOSTING
