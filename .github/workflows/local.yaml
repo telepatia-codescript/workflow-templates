@@ -9,12 +9,16 @@ on:
         required: true
       SERVICE_ACCOUNT:
         required: true
+    
+
+# on:
+#   workflow_dispatch:
 
 jobs:
   fetch_secrets:
     runs-on: macos-latest
     outputs:
-      flavor-json-content: ${{ steps.generate-flavor-json.outputs.flavor_file }}
+      flavor-json-content: ${{ steps.generate-flavor-json.outputs.FLAVOR_FILE }}
     steps:
     - uses: dopplerhq/secrets-fetch-action@v1.2.0
       id: doppler
@@ -23,7 +27,7 @@ jobs:
         doppler-project: infra
         doppler-config: "dev_${{ github.actor }}"
     
-    - name: Define Flavor File
+    - name: Define Flavor file
       id: generate-flavor-json
       run: |
         cat <<EOF > flavor.json
@@ -34,14 +38,14 @@ jobs:
             "APP_TYPE": "${{ steps.doppler.outputs.APP_TYPE }}"
         }
         EOF
-        content=$(jq -c '.' flavor.json)
-        echo "flavor_file=$content" >> $GITHUB_OUTPUT
+        content=$(cat flavor.json)
+        echo "FLAVOR_FILE=$content" >> $GITHUB_OUTPUT
 
   build_web:
     runs-on: macos-latest
     needs: fetch_secrets
     steps:
-    - name: Clone Repository
+    - name: Clone repository
       uses: actions/checkout@v4
     
     - name: Set up Flutter
@@ -50,7 +54,7 @@ jobs:
         channel: stable
         flutter-version: 3.24.0
 
-    - name: Install Dependencies
+    - name: Install dependencies
       run: |
         flutter pub get
         dart pub get
@@ -59,9 +63,15 @@ jobs:
       run: |
         dart run build_runner build --delete-conflicting-outputs
 
-    - name: Build Web
+    - name: Start build_runner watch (in the background)
       run: |
-        echo '${{ needs.fetch_secrets.outputs.flavor-json-content }}' | jq '.' > flavor.json
+        dart run build_runner watch --delete-conflicting-outputs &
+    
+    - name: Build web
+      env:
+        FLAVOR_FILE: ${{ needs.fetch_secrets.outputs.flavor-json-content }}
+      run: |
+        echo $FLAVOR_FILE > flavor.json
         echo "DEPLOYMENT_ID=web-$(date +'%Y-%m-%d-%H-%M-%S')" >> $GITHUB_ENV
         flutter build web \
             --dart-define-from-file=flavor.json \
@@ -70,7 +80,7 @@ jobs:
             --dart-define=DEPLOYMENT_ID=$DEPLOYMENT_ID \
             --dart-define=GIT_COMMIT_HASH=${{ github.sha }}
 
-    - name: Create Deployment Metadata
+    - name: Build document
       run: |
         echo "FLAVOR: local" > build/web/flavor.txt
         echo "DEPLOYMENT_ID: $DEPLOYMENT_ID" >> build/web/flavor.txt
@@ -89,33 +99,33 @@ jobs:
     runs-on: macos-latest
     needs: [build_web, fetch_secrets]
     steps:
-    - name: Clone Repository
+    - name: Clone repository
       uses: actions/checkout@v4
 
     - id: auth
-      name: Authenticate to Google Cloud
-      uses: google-github-actions/auth@v2
+      name: 'Authenticate to Google Cloud'
+      uses: 'google-github-actions/auth@v2'
       with:
         create_credentials_file: true
         workload_identity_provider: ${{ secrets.WORKLOAD_IDENTITY_PROVIDER }}
         service_account: ${{ secrets.SERVICE_ACCOUNT }}
 
     - name: Set up Cloud SDK
-      uses: google-github-actions/setup-gcloud@v2
+      uses: 'google-github-actions/setup-gcloud@v2'
       with:
         version: '>= 363.0.0'
     
-    - name: Download Build Artifacts
+    - name: Download Artifact
       uses: actions/download-artifact@v4
       with:
         name: build
         path: build/web
     
-    - name: Deploy to Firebase Hosting
+    - name: Deploy web
+      env:
+        FLAVOR_FILE: ${{ needs.fetch_secrets.outputs.flavor-json-content }}
       run: |
-        echo '${{ needs.fetch_secrets.outputs.flavor-json-content }}' | jq '.' > flavor.json
-        CUSTOM_LOCAL=$(jq -r '.CUSTOM_LOCAL' flavor.json)
-        echo "CUSTOM_LOCAL=$CUSTOM_LOCAL" >> $GITHUB_ENV
-        HOSTING="dev-$CUSTOM_LOCAL"
-        echo "Deploying to Firebase Hosting: $HOSTING"
+        echo $FLAVOR_FILE > flavor.json
+        CUSTOM_LOCAL=$(jq -r '.CUSTOM_LOCAL' flavor.json) >> $GITHUB_ENV
+        HOSTING="dev-$CUSTOM_LOCAL" >> $GITHUB_ENV
         firebase deploy --only hosting:$HOSTING
