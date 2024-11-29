@@ -38,7 +38,7 @@ jobs:
             "APP_TYPE": "${{ steps.doppler.outputs.APP_TYPE }}"
         }
         EOF
-        content=$(cat flavor.json)
+        content=$(jq -c '.' flavor.json)
         echo "FLAVOR_FILE=$content" >> $GITHUB_OUTPUT
 
   build_web:
@@ -71,7 +71,7 @@ jobs:
       env:
         FLAVOR_FILE: ${{ needs.fetch_secrets.outputs.flavor-json-content }}
       run: |
-        echo $FLAVOR_FILE > flavor.json
+        echo '$FLAVOR_FILE' | jq '.' > flavor.json
         echo "DEPLOYMENT_ID=web-$(date +'%Y-%m-%d-%H-%M-%S')" >> $GITHUB_ENV
         flutter build web \
             --dart-define-from-file=flavor.json \
@@ -125,7 +125,7 @@ jobs:
       env:
         FLAVOR_FILE: ${{ needs.fetch_secrets.outputs.flavor-json-content }}
       run: |
-        echo $FLAVOR_FILE > flavor.json
+        echo '$FLAVOR_FILE' | jq '.' > flavor.json
         CUSTOM_LOCAL=$(jq -r '.CUSTOM_LOCAL' flavor.json) >> $GITHUB_ENV
         HOSTING="dev-$CUSTOM_LOCAL" >> $GITHUB_ENV
         firebase deploy --only hosting:$HOSTING
