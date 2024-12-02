@@ -68,12 +68,16 @@ jobs:
     - name: Clone repository
       uses: actions/checkout@v4
 
+    - name: set lower case owner name
+      run: |
+        echo "GITHUB_ACTOR=${${{ github.actor }},,}" >>${GITHUB_ENV}
+
     - uses: dopplerhq/secrets-fetch-action@v1.2.0
       id: doppler
       with:
         doppler-token: ${{ secrets.DOPPLER_TOKEN }}
         doppler-project: infra
-        doppler-config: "dev_${{ github.actor }}"
+        doppler-config: "dev_${{ env.GITHUB_ACTOR }}"
 
     - name: Define Flavor file
       run: |
@@ -147,12 +151,16 @@ jobs:
         name: build
         path: build/web
 
+    - name: set lower case owner name
+      run: |
+          echo "GITHUB_ACTOR=${${{ github.actor }},,}" >>${GITHUB_ENV}
+  
     - uses: dopplerhq/secrets-fetch-action@v1.2.0
       id: doppler
       with:
         doppler-token: ${{ secrets.DOPPLER_TOKEN }}
         doppler-project: infra
-        doppler-config: "dev_${{ github.actor }}"    
+        doppler-config: "dev_${{ env.GITHUB_ACTOR }}"   
   
     - name: Define Flavor file
       run: |
