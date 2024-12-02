@@ -118,4 +118,4 @@ jobs:
         echo $GCLOUD_KEY > /tmp/gcp-key.json
         export GOOGLE_APPLICATION_CREDENTIALS=/tmp/gcp-key.json
         gcloud auth activate-service-account --key-file=/tmp/gcp-key.json
-        firebase deploy --only hosting:${{ secrets.ENV }}
+        firebase deploy --only hosting:${{ secrets.ENV }}-${{ secrets.APP_TYPE }}

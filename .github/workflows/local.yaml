@@ -9,6 +9,8 @@ on:
         required: true
       GCP_PROJECT_ID:
         required: true
+      APP_TYPE:
+        required: true
     
 
 # on:
@@ -171,4 +173,4 @@ jobs:
         echo $GCLOUD_KEY > /tmp/gcp-key.json
         export GOOGLE_APPLICATION_CREDENTIALS=/tmp/gcp-key.json
         gcloud auth activate-service-account --key-file=/tmp/gcp-key.json
-        firebase deploy --only hosting:dev-${{ steps.doppler.outputs.CUSTOM_LOCAL }}
+        firebase deploy --only hosting:dev-${{ steps.doppler.outputs.CUSTOM_LOCAL }}-${{ secrets.APP_TYPE }}
