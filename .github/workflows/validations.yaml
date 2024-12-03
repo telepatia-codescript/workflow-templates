@@ -1,10 +1,6 @@
 name: "Validate Envs"
 on:
   workflow_call:
-    inputs:
-      env_name:
-        required: true
-        type: string
     secrets:
         CUSTOM_LOCAL:
             required: true
@@ -18,7 +14,6 @@ on:
 jobs:
   env_validations:
     runs-on: ubuntu-latest
-    environment: ${{ inputs.env_name }}
     steps:
     - name: Validate envs
       run: |

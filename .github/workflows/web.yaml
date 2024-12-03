@@ -1,10 +1,6 @@
 name: "Deploy Web"
 on:
   workflow_call:
-    inputs:
-      env_name:
-        required: true
-        type: string
     secrets:
         GCP_SERVICE_ACCOUNT_KEY:
             required: true
@@ -26,13 +22,10 @@ jobs:
       APP_TYPE: ${{ secrets.APP_TYPE }}
       DOMAIN: ${{ secrets.DOMAIN }}
       ENV: ${{ secrets.ENV }}
-    with:
-      env_name: ${{ inputs.env_name }}
 
   build_web:
     runs-on: macos-latest
     needs: validations
-    environment: ${{ inputs.env_name }}
     steps:
     - name: Clone repository
       uses: actions/checkout@v4
@@ -91,7 +84,6 @@ jobs:
   deploy_web:
     runs-on: macos-latest
     needs: build_web
-    environment: ${{ inputs.env_name }}
     steps:
     - name: Clone repository
       uses: actions/checkout@v4
