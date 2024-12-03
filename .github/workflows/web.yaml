@@ -36,6 +36,12 @@ jobs:
         channel: stable
         flutter-version: 3.24.0
 
+    - id: decypt-secrets
+      run: |
+        echo "ENV_SECRET=$(echo -n "${{ secrets.ENV }}" | base64 --decode) >> $GITHUB_OUTPUT
+        echo "CUSTOM_LOCAL_SECRET=$(echo -n "${{ secrets.CUSTOM_LOCAL }}" | base64 --decode) >> $GITHUB_OUTPUT
+        echo "DOMAIN_SECRET=$(echo -n "${{ secrets.DOMAIN }}" | base64 --decode) >> $GITHUB_OUTPUT
+
     - name: Install dependencies
       run: |
         flutter pub get
@@ -49,9 +55,9 @@ jobs:
       run: |
         cat <<EOF > flavor.json
         {
-          "ENV": "${{ secrets.ENV }}",
-          "CUSTOM_LOCAL": "${{ secrets.CUSTOM_LOCAL }}",
-          "DOMAIN": "${{ secrets.DOMAIN }}", 
+          "ENV": "${{ steps.decypt-secrets.outputs.ENV_SECRET }}",
+          "CUSTOM_LOCAL": "${{ steps.decypt-secrets.outputs.CUSTOM_LOCAL_SECRET }}",
+          "DOMAIN": "${{ steps.decypt-secrets.outputs.DOMAIN_SECRET }}", 
           "APP_TYPE": "${{ secrets.APP_TYPE }}"
         }
         EOF
@@ -98,14 +104,20 @@ jobs:
       with:
         name: build
         path: build/web   
+
+    - id: decypt-secrets
+      run: |
+        echo "ENV_SECRET=$(echo -n "${{ secrets.ENV }}" | base64 --decode) >> $GITHUB_OUTPUT
+        echo "CUSTOM_LOCAL_SECRET=$(echo -n "${{ secrets.CUSTOM_LOCAL }}" | base64 --decode) >> $GITHUB_OUTPUT
+        echo "DOMAIN_SECRET=$(echo -n "${{ secrets.DOMAIN }}" | base64 --decode) >> $GITHUB_OUTPUT
   
     - name: Define Flavor file
       run: |
         cat <<EOF > flavor.json
         {
-          "ENV": "${{ secrets.ENV }}",
-          "CUSTOM_LOCAL": "${{ secrets.CUSTOM_LOCAL }}",
-          "DOMAIN": "${{ secrets.DOMAIN }}", 
+          "ENV": "${{ steps.decypt-secrets.outputs.ENV_SECRET }}",
+          "CUSTOM_LOCAL": "${{ steps.decypt-secrets.outputs.CUSTOM_LOCAL_SECRET }}",
+          "DOMAIN": "${{ steps.decypt-secrets.outputs.DOMAIN_SECRET }}", 
           "APP_TYPE": "${{ secrets.APP_TYPE }}"
         }
         EOF
@@ -118,4 +130,4 @@ jobs:
         echo $GCLOUD_KEY > /tmp/gcp-key.json
         export GOOGLE_APPLICATION_CREDENTIALS=/tmp/gcp-key.json
         gcloud auth activate-service-account --key-file=/tmp/gcp-key.json
-        firebase deploy --only hosting:${{ secrets.ENV }}-${{ secrets.APP_TYPE }}
+        firebase deploy --only hosting:${{ steps.decypt-secrets.outputs.ENV_SECRET }}-${{ secrets.APP_TYPE }}
